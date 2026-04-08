@@ -269,8 +269,8 @@ with c4:
 # ─── QUOTE ───────────────────────────────────────────────────────────────────
 st.markdown(f"""
 <div class="quote-box">
-  "La differenza tra il {fmt(costo_banca_conflitto*100, 1)}% e lo {fmt(costo_etf*100, 2)}% di costo annuo non sembra molta.<br>
-   Ma su {anni} anni, quella differenza vale <strong>€ {fmt(diff_etf_vs_conflitto)}</strong> — denaro tuo,<br>
+  "La differenza tra il {fmt(costo_banca_conflitto*100, 1)}% e lo {fmt(costo_etf*100, 2)}% di costo annuo,<br>
+   su {anni} anni, vale <strong>€ {fmt(diff_etf_vs_conflitto)}</strong> — denaro tuo,<br>
    che stai regalando alla banca ogni giorno senza saperlo."
 </div>
 """, unsafe_allow_html=True)
