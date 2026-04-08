@@ -19,15 +19,14 @@ LIGHT_BG  = "#F4F7FC"
 WHITE     = "#FFFFFF"
 GOLD      = "#C9A84C"
 RED_LOSS  = "#C0392B"
+RED_DARK  = "#7B1A10"   # rosso più scuro per la linea con conflitto
 
 # ─── FORMATO NUMERI ITALIANO ─────────────────────────────────────────────────
 def fmt(n, decimali=0):
-    """Formatta un numero con separatore migliaia . e decimali ,"""
     if decimali == 0:
         s = f"{n:,.0f}"
     else:
         s = f"{n:,.{decimali}f}"
-    # Converti formato anglosassone → italiano: , → X, . → ,, X → .
     s = s.replace(",", "X").replace(".", ",").replace("X", ".")
     return s
 
@@ -81,7 +80,8 @@ st.markdown(f"""
       border-left: 5px solid {BRIGHT};
       text-align: center;
   }}
-  .kpi-card.bad {{ border-left-color: {RED_LOSS}; }}
+  .kpi-card.bad  {{ border-left-color: {RED_LOSS}; }}
+  .kpi-card.dark {{ border-left-color: {RED_DARK}; }}
   .kpi-card.gold {{ border-left-color: {GOLD}; }}
   .kpi-label {{
       font-size: 0.85rem;
@@ -97,7 +97,8 @@ st.markdown(f"""
       color: {NAVY};
       line-height: 1;
   }}
-  .kpi-value.bad {{ color: {RED_LOSS}; }}
+  .kpi-value.bad  {{ color: {RED_LOSS}; }}
+  .kpi-value.dark {{ color: {RED_DARK}; }}
   .kpi-value.good {{ color: {BRIGHT}; }}
   .kpi-value.gold {{ color: {GOLD}; }}
   .kpi-sub {{
@@ -149,7 +150,7 @@ logo_path = os.path.join(os.path.dirname(__file__), "logo-orizz-confini.png")
 if os.path.exists(logo_path):
     with open(logo_path, "rb") as f:
         logo_b64 = base64.b64encode(f.read()).decode()
-    logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="height:60px;">'
+    logo_html  = f'<img src="data:image/png;base64,{logo_b64}" style="height:60px;">'
     logo_white = f'<img src="data:image/png;base64,{logo_b64}" style="height:48px;filter:brightness(0) invert(1);">'
 else:
     logo_html  = f'<span style="font-family:Playfair Display,serif;font-size:1.8rem;font-weight:700;color:{NAVY};">Confini</span>'
@@ -173,19 +174,25 @@ with st.expander("⚙️ Parametri simulazione", expanded=True):
     with col_s4:
         rendimento_lordo = st.slider("Rendimento lordo annuo (%)", 3.0, 10.0, 6.5, step=0.25) / 100
 
-    col_s5, col_s6, _, __ = st.columns(4)
+    col_s5, col_s6, col_s7, _ = st.columns(4)
     with col_s5:
         costo_banca = st.slider("Costo annuo fondi bancari (%)", 1.5, 4.0, 2.5, step=0.25) / 100
     with col_s6:
-        costo_indip = st.slider("Costo consulenza indipendente (%)", 0.1, 1.0, 0.5, step=0.1) / 100
+        extra_conflitto = st.slider("Costo aggiuntivo conflitto d'interessi (%)", 0.5, 2.0, 1.0, step=0.25) / 100
+    with col_s7:
+        costo_etf = st.slider("Costo medio ETF (%)", 0.05, 0.5, 0.2, step=0.05) / 100
 
     st.caption("I dati sono puramente simulativi e non costituiscono consulenza finanziaria.")
 
 
 # ─── CALCOLI ─────────────────────────────────────────────────────────────────
 mesi = anni * 12
-r_indip = (rendimento_lordo - costo_indip) / 12
-r_banca  = (rendimento_lordo - costo_banca) / 12
+
+costo_banca_conflitto = costo_banca + extra_conflitto
+
+r_etf            = (rendimento_lordo - costo_etf) / 12
+r_banca          = (rendimento_lordo - costo_banca) / 12
+r_banca_conflitto = (rendimento_lordo - costo_banca_conflitto) / 12
 
 def simula(r_mensile):
     saldo = capitale
@@ -195,13 +202,18 @@ def simula(r_mensile):
         storia.append(saldo)
     return storia
 
-storia_indip = simula(r_indip)
-storia_banca  = simula(r_banca)
+storia_etf             = simula(r_etf)
+storia_banca           = simula(r_banca)
+storia_banca_conflitto = simula(r_banca_conflitto)
 
-finale_indip = storia_indip[-1]
-finale_banca  = storia_banca[-1]
-differenza    = finale_indip - finale_banca
-perc_erosione = (differenza / finale_indip) * 100
+finale_etf             = storia_etf[-1]
+finale_banca           = storia_banca[-1]
+finale_banca_conflitto = storia_banca_conflitto[-1]
+
+diff_etf_vs_banca      = finale_etf - finale_banca
+diff_etf_vs_conflitto  = finale_etf - finale_banca_conflitto
+perc_erosione_banca    = (diff_etf_vs_banca / finale_etf) * 100
+perc_erosione_conflitto = (diff_etf_vs_conflitto / finale_etf) * 100
 
 anni_range = [i / 12 for i in range(mesi + 1)]
 
@@ -224,9 +236,9 @@ c1, c2, c3, c4 = st.columns(4)
 with c1:
     st.markdown(f"""
     <div class="kpi-card">
-      <div class="kpi-label">Patrimonio finale<br>Consulenza Indipendente</div>
-      <div class="kpi-value good">€ {fmt(finale_indip)}</div>
-      <div class="kpi-sub">Costo annuo: {fmt(costo_indip*100, 1)}%</div>
+      <div class="kpi-label">Patrimonio finale<br>ETF (Consulenza Indipendente)</div>
+      <div class="kpi-value good">€ {fmt(finale_etf)}</div>
+      <div class="kpi-sub">Costo annuo ETF: {fmt(costo_etf*100, 2)}%</div>
     </div>""", unsafe_allow_html=True)
 
 with c2:
@@ -239,26 +251,26 @@ with c2:
 
 with c3:
     st.markdown(f"""
-    <div class="kpi-card gold">
-      <div class="kpi-label">Denaro perso in commissioni</div>
-      <div class="kpi-value gold">€ {fmt(differenza)}</div>
-      <div class="kpi-sub">In {anni} anni di investimento</div>
+    <div class="kpi-card dark">
+      <div class="kpi-label">Patrimonio finale<br>Banca + Conflitto d'interessi</div>
+      <div class="kpi-value dark">€ {fmt(finale_banca_conflitto)}</div>
+      <div class="kpi-sub">Costo annuo: {fmt(costo_banca_conflitto*100, 1)}%</div>
     </div>""", unsafe_allow_html=True)
 
 with c4:
     st.markdown(f"""
-    <div class="kpi-card bad">
-      <div class="kpi-label">Patrimonio eroso dai costi</div>
-      <div class="kpi-value bad">{fmt(perc_erosione, 1)}%</div>
-      <div class="kpi-sub">Del tuo potenziale finale</div>
+    <div class="kpi-card gold">
+      <div class="kpi-label">Risparmio ETF vs Banca + Conflitto</div>
+      <div class="kpi-value gold">€ {fmt(diff_etf_vs_conflitto)}</div>
+      <div class="kpi-sub">{fmt(perc_erosione_conflitto, 1)}% del tuo potenziale finale</div>
     </div>""", unsafe_allow_html=True)
 
 
 # ─── QUOTE ───────────────────────────────────────────────────────────────────
 st.markdown(f"""
 <div class="quote-box">
-  "La differenza tra il 2,5% e lo 0,5% di costo annuo non sembra molta.<br>
-   Ma su {anni} anni, quella differenza vale <strong>€ {fmt(differenza)}</strong> — denaro tuo,<br>
+  "La differenza tra il {fmt(costo_banca_conflitto*100, 1)}% e lo {fmt(costo_etf*100, 2)}% di costo annuo non sembra molta.<br>
+   Ma su {anni} anni, quella differenza vale <strong>€ {fmt(diff_etf_vs_conflitto)}</strong> — denaro tuo,<br>
    che stai regalando alla banca ogni giorno senza saperlo."
 </div>
 """, unsafe_allow_html=True)
@@ -269,33 +281,45 @@ st.markdown(f'<div class="section-title">📈 Crescita del patrimonio nel tempo<
 
 fig = go.Figure()
 
+# Area tra ETF e Banca con conflitto (la forbice più grande)
 fig.add_trace(go.Scatter(
     x=anni_range + anni_range[::-1],
-    y=storia_indip + storia_banca[::-1],
+    y=storia_etf + storia_banca_conflitto[::-1],
     fill='toself',
-    fillcolor='rgba(45,125,210,0.10)',
+    fillcolor='rgba(45,125,210,0.08)',
     line=dict(color='rgba(0,0,0,0)'),
     showlegend=False,
     hoverinfo='skip',
-    name='Differenza'
 ))
 
+# Linea banca con conflitto d'interessi
+fig.add_trace(go.Scatter(
+    x=anni_range,
+    y=storia_banca_conflitto,
+    mode='lines',
+    name=f'Banca + conflitto d\'interessi',
+    line=dict(color=RED_DARK, width=3, dash='dash'),
+))
+
+# Linea banca standard
 fig.add_trace(go.Scatter(
     x=anni_range,
     y=storia_banca,
     mode='lines',
     name='Fondi Bancari',
-    line=dict(color=RED_LOSS, width=3, dash='dash'),
+    line=dict(color=RED_LOSS, width=2, dash='dash'),
 ))
 
+# Linea ETF
 fig.add_trace(go.Scatter(
     x=anni_range,
-    y=storia_indip,
+    y=storia_etf,
     mode='lines',
-    name='Consulenza Indipendente',
+    name='ETF (Consulenza Indipendente)',
     line=dict(color=BRIGHT, width=4),
 ))
 
+# Capitale versato
 capitale_curve = [capitale + versamento * m for m in range(mesi + 1)]
 fig.add_trace(go.Scatter(
     x=anni_range,
@@ -305,10 +329,10 @@ fig.add_trace(go.Scatter(
     line=dict(color='#aab4cc', width=2, dash='dot'),
 ))
 
-# Annotation: sfondo bianco, testo navy, senza bordo
+# Annotation differenza ETF vs Banca+conflitto
 fig.add_annotation(
-    x=anni, y=(finale_indip + finale_banca) / 2,
-    text=f"<b>€ {fmt(differenza)}<br>persi in costi</b>",
+    x=anni, y=(finale_etf + finale_banca_conflitto) / 2,
+    text=f"<b>€ {fmt(diff_etf_vs_conflitto)}<br>persi in costi</b>",
     showarrow=True,
     arrowhead=2,
     arrowcolor=BRIGHT,
@@ -327,7 +351,7 @@ fig.update_layout(
         orientation='v',
         yanchor='middle', y=0.5,
         xanchor='left', x=1.02,
-        font=dict(size=13),
+        font=dict(size=12),
         bgcolor='rgba(255,255,255,0.85)',
         borderwidth=0,
         itemwidth=30,
@@ -347,7 +371,7 @@ fig.update_layout(
         showline=True, linecolor='#dce4f0',
     ),
     height=520,
-    margin=dict(l=20, r=180, t=40, b=20),
+    margin=dict(l=20, r=220, t=40, b=20),
     hovermode='x unified',
 )
 
@@ -357,42 +381,64 @@ st.plotly_chart(fig, use_container_width=True)
 # ─── GRAFICO EROSIONE CUMULATIVA ─────────────────────────────────────────────
 st.markdown(f'<div class="section-title">🔥 Commissioni cumulative sottratte al tuo patrimonio</div>', unsafe_allow_html=True)
 
-erosione_cumulativa = [i - b for i, b in zip(storia_indip, storia_banca)]
+erosione_banca           = [e - b for e, b in zip(storia_etf, storia_banca)]
+erosione_banca_conflitto = [e - b for e, b in zip(storia_etf, storia_banca_conflitto)]
 
 fig2 = go.Figure()
+
+# Area sotto la linea conflitto
 fig2.add_trace(go.Scatter(
     x=anni_range,
-    y=erosione_cumulativa,
+    y=erosione_banca_conflitto,
     mode='lines',
     fill='tozeroy',
-    fillcolor='rgba(192,57,43,0.15)',
-    line=dict(color=RED_LOSS, width=3),
-    name='Costo nascosto cumulativo',
+    fillcolor='rgba(123,26,16,0.12)',
+    line=dict(color=RED_DARK, width=3, dash='dash'),
+    name=f'Banca + conflitto d\'interessi',
+))
+
+# Linea banca standard
+fig2.add_trace(go.Scatter(
+    x=anni_range,
+    y=erosione_banca,
+    mode='lines',
+    fill='tozeroy',
+    fillcolor='rgba(192,57,43,0.10)',
+    line=dict(color=RED_LOSS, width=2),
+    name='Fondi Bancari',
 ))
 
 fig2.update_layout(
     paper_bgcolor='rgba(0,0,0,0)',
     plot_bgcolor='rgba(0,0,0,0)',
     font=dict(family='Source Sans 3', color=NAVY),
+    legend=dict(
+        orientation='h',
+        yanchor='bottom', y=1.02,
+        xanchor='left', x=0,
+        font=dict(size=12),
+        bgcolor='rgba(255,255,255,0.85)',
+        borderwidth=0,
+    ),
     xaxis=dict(title='Anni', gridcolor='#e8edf5', showline=True, linecolor='#dce4f0'),
-    yaxis=dict(title='€ persi in commissioni', tickformat='€,.0f', gridcolor='#e8edf5', showline=True, linecolor='#dce4f0'),
-    height=320,
-    margin=dict(l=20, r=20, t=20, b=20),
-    showlegend=False,
+    yaxis=dict(title='€ persi vs ETF', tickformat='€,.0f', gridcolor='#e8edf5', showline=True, linecolor='#dce4f0'),
+    height=340,
+    margin=dict(l=20, r=20, t=40, b=20),
 )
 
+# Annotazioni ogni 5 anni solo sulla linea conflitto (la più alta)
 for anno_check in range(5, anni + 1, 5):
     idx = anno_check * 12
-    if idx < len(erosione_cumulativa):
+    if idx < len(erosione_banca_conflitto):
         fig2.add_annotation(
             x=anno_check,
-            y=erosione_cumulativa[idx],
-            text=f"<b>€ {fmt(erosione_cumulativa[idx])}</b>",
-            showarrow=True, arrowhead=1, arrowcolor=RED_LOSS,
-            font=dict(color=RED_LOSS, size=11),
+            y=erosione_banca_conflitto[idx],
+            text=f"<b>€ {fmt(erosione_banca_conflitto[idx])}</b>",
+            showarrow=True, arrowhead=1, arrowcolor=RED_DARK,
+            font=dict(color=RED_DARK, size=11),
             ax=0, ay=-30,
             bgcolor='rgba(255,255,255,0.85)',
-            bordercolor=RED_LOSS,
+            borderwidth=0,
             borderpad=4,
         )
 
@@ -401,7 +447,6 @@ st.plotly_chart(fig2, use_container_width=True)
 
 # ─── PERCHÉ INDIPENDENTE ──────────────────────────────────────────────────────
 st.markdown(f'<div class="section-title">⚖️ Perché la consulenza indipendente è diversa</div>', unsafe_allow_html=True)
-
 
 cards = [
     ("🚫", "Assenza di conflitti d'interesse", f"Il consulente indipendente <b>non guadagna commissioni</b> sui prodotti che ti consiglia. Il suo unico compenso viene da te. Il suo interesse coincide con il tuo.", BRIGHT),
